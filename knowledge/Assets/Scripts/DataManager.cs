@@ -9,12 +9,13 @@ public class DataManager : MonoBehaviour
 {
     private string m_RecordCurrentModificationFilePath = "RecordCurrentModification.yaml";
     private string m_RecordDataStorageFilePath = "RecordDataStorage.yaml";
-    private List<RecordInfo> m_reviewingRecords;
+    private ReviewingIndexing m_reviewingRecords;
+    private RecordDataStorage m_recordDataBase;
     private int m_currentReviewRecordID;
 
     private bool needReview(RecordInfo record)
     {
-        return true;
+        return DateTime.Compare(DateTime.Now, record.ReviewDate) > 0;
     }
 
     private string GetDataPath(string filename)
@@ -34,7 +35,8 @@ public class DataManager : MonoBehaviour
     {
         if (!File.Exists(_filePath))
         {
-            throw new FileNotFoundException();
+            return default;
+            //throw new FileNotFoundException();
         }
         StreamReader yamlReader = File.OpenText(_filePath);
         Deserializer yamlDeserializer = new Deserializer();
@@ -53,26 +55,36 @@ public class DataManager : MonoBehaviour
 
     private void Awake()
     {
-
-        RecordDataStorage info = GetRecordDataStorage();
-
-        m_reviewingRecords = new List<RecordInfo>();
-        for (int i = 0; i < info.RecordList.Count; i++)
+        m_recordDataBase = GetRecordDataStorage();
+        if (m_recordDataBase == null)
         {
-            if (needReview(info.RecordList[i]))
+            m_recordDataBase = new RecordDataStorage();
+        }
+
+        m_reviewingRecords = new ReviewingIndexing();
+        m_reviewingRecords.RecordIDNum = m_recordDataBase.RecordIDNum;
+        foreach (KeyValuePair<int, RecordInfo> kv in m_recordDataBase.RecordDict)
+        {
+            if (needReview(kv.Value))
             {
-                m_reviewingRecords.Add(info.RecordList[i]);
+                m_reviewingRecords.RecordList.Add(kv.Value);
             }
         }
         m_currentReviewRecordID = 0;
-        m_reviewingRecords[0].CreateDate = DateTime.Now;
         SaveReviewingRecords();
     }
 
     public void SaveReviewingRecords()
     {
         var reviewingPath = GetDataPath(m_RecordCurrentModificationFilePath);
-        Serializer(reviewingPath, new RecordDataStorage(m_reviewingRecords));
+        Serializer(reviewingPath, m_reviewingRecords);
+
+    }
+
+    public void SaveRecordDataStorage()
+    {
+        var dataStoragePath = GetDataPath(m_RecordDataStorageFilePath);
+        Serializer(dataStoragePath, m_recordDataBase);
 
     }
 
@@ -83,7 +95,7 @@ public class DataManager : MonoBehaviour
 
     public void ModifyCurrentRecord(RecordInfo modifiedRecord)
     {
-        m_reviewingRecords[m_currentReviewRecordID] = modifiedRecord;
+        m_reviewingRecords.RecordList[m_currentReviewRecordID] = modifiedRecord;
         SaveReviewingRecords();
     }
 
@@ -96,5 +108,30 @@ public class DataManager : MonoBehaviour
         }
         ReviewNextRecord();
     }
-    
+
+    public void AddNewRecord(RecordInfo record)
+    {
+        m_reviewingRecords.AddRecord(record);
+        SaveReviewingRecords();
+    }
+
+    public void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.P))
+        {
+            var a = new RecordInfo();
+            var now = DateTime.Now;
+            a.CreateDate = now;
+            a.ReviewDate = new DateTime(now.Year, now.Month, now.Day).AddDays(1);
+            a.Front = "a";
+            a.Back = "b";
+            AddNewRecord(a);
+        }
+        if (Input.GetKeyDown(KeyCode.L))
+        {
+            m_recordDataBase.CombineDerivedeReviewingIndexing(m_reviewingRecords);
+            SaveRecordDataStorage();
+        }
+    }
+
 }

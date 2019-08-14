@@ -16,14 +16,49 @@ public class RecordInfo
 
 public class RecordDataStorage
 {
-    public List<RecordInfo> RecordList { get; set; }
+    public Dictionary<int, RecordInfo> RecordDict { get; set; }
+    public int RecordIDNum { get; set; }
+
     public RecordDataStorage()
     {
-        RecordList = new List<RecordInfo>();
+        RecordDict = new Dictionary<int, RecordInfo>();
     }
-    public RecordDataStorage(List<RecordInfo> _recordList)
+
+    public RecordDataStorage(Dictionary<int, RecordInfo> _recordList)
     {
-        RecordList = _recordList;
+        RecordDict = _recordList;
+    }
+
+    public void CombineDerivedeReviewingIndexing(ReviewingIndexing ri)
+    {
+        for (int i = 0; i < ri.RecordList.Count; i++)
+        {
+            if (ri.RecordList[i].ID >= RecordIDNum)
+            {
+                RecordDict.Add(ri.RecordList[i].ID, ri.RecordList[i]);
+            }
+            else
+            {
+                RecordDict[ri.RecordList[i].ID] = ri.RecordList[i];
+            }
+        }
+        RecordIDNum = ri.RecordIDNum;
+    }
+}
+
+public class ReviewingIndexing
+{
+    public List<RecordInfo> RecordList { get; set; }
+    public int RecordIDNum { get; set; }
+    public void AddRecord(RecordInfo record)
+    {
+        record.ID = RecordIDNum;
+        RecordIDNum++;
+        RecordList.Add(record);
+    }
+    public ReviewingIndexing()
+    {
+        RecordList = new List<RecordInfo>();
     }
 }
 
