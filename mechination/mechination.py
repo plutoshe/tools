@@ -117,18 +117,85 @@ class machinationGraph:
             OutputID+=1
             OutputDict[self.Connection[i]["type"]][i] = self.Connection[i]
             OutputDict[self.Connection[i]["type"]][i].update({"ID": OutputID})
-        with open(i_filepath, mode='w') as outputFile:
+        with open(i_filepath, mode='wb') as outputFile:
             csvWriter = csv.writer(outputFile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
             csvWriter.writerow(["SOURCES"])
             csvWriter.writerow(["ID", "Label", "Geometry", "Style", "Activation", "Resources (color)", "Show in chart"])
             sourceY = 0
+            sourceX = 0
             for i in OutputDict["Source"]:
-                geometry = '{"_attributes":{"x":"0","y":"' + str(sourceY) + '","width":"60","height":"60","TRANSLATE_CONTROL_POINTS":"1","relative":"0","as":"geometry"},"mxPoint":{"_attributes":{"x":"0","y":"40","as":"offset"}}}'
+                geometry = '{"_attributes":{"x":"' + str(sourceX) + '","y":"' + str(sourceY) + '","width":"60","height":"60","TRANSLATE_CONTROL_POINTS":"1","relative":"0","as":"geometry"},"mxPoint":{"_attributes":{"x":"0","y":"40","as":"offset"}}}'
                 style = 'shape=source-shape;whiteSpace=wrap;html=1;strokeWidth=2;aspect=fixed;resizable=0;fontSize=16;fontColor=#000000;strokeColor=#000000;'
                 v = OutputDict["Source"][i]
                 csvWriter.writerow([v["ID"], i, geometry, style, "automatic", "Black", 0])
                 sourceY += 200
+
+
+            # POOL
+            csvWriter.writerow([""])
+            csvWriter.writerow(["POOLS"])
+            csvWriter.writerow(["ID", "Label", "Geometry", "Style", "Activation", "Activation Mode	Resources",
+            "Resources (color)", "Capacity (limit)", "Capacity (display)", "Overflow", "Show in chart"])
+            sourceY = 0
+            sourceX = 300
+            for i in OutputDict["Pool"]:
+                geometry = '{"_attributes":{"x":"' + str(sourceX) + '","y":"' + str(sourceY) + '","width":"60","height":"60","TRANSLATE_CONTROL_POINTS":"1","relative":"0","as":"geometry"},"mxPoint":{"_attributes":{"x":"0","y":"40","as":"offset"}}}'
+                style = 'shape=pool-shape;whiteSpace=wrap;html=1;strokeWidth=2;aspect=fixed;resizable=0;fontSize=16;fontColor=#000000;strokeColor=#000000;'
+                v = OutputDict["Pool"][i]
+                csvWriter.writerow([v["ID"], i, geometry, style, "passive", "push-any", 0, "Black", -1, 100, "block", 0])
+                sourceY += 200
+            # GATES
+            csvWriter.writerow([""])
+            csvWriter.writerow(["GATES"])
+            csvWriter.writerow(["ID", "Label", "Geometry", "Style", "Activation", "Activation Mode",
+            "Distribution", "Show in chart"])
+            sourceY = 0
+            sourceX = 600
+            for i in OutputDict["Gate"]:
+                geometry = '{"_attributes":{"x":"' + str(sourceX) + '","y":"' + str(sourceY) + '","width":"60","height":"60","TRANSLATE_CONTROL_POINTS":"1","relative":"0","as":"geometry"},"mxPoint":{"_attributes":{"x":"0","y":"40","as":"offset"}}}'
+                style = 'shape=gate-shape;whiteSpace=wrap;html=1;strokeWidth=2;aspect=fixed;resizable=0;fontSize=16;fontColor=#000000;strokeColor=#000000;'
+                v = OutputDict["Gate"][i]
+                csvWriter.writerow([v["ID"], i, geometry, style,  "passive", "pull-all", "deterministic", 0])
+                sourceY += 200
+            # CONVERTERS
+            csvWriter.writerow([""])
+            csvWriter.writerow(["CONVERTERS"])
+            csvWriter.writerow(["ID", "Label", "Geometry", "Style", "Activation", "Activation Mode",
+            "Resources (color)", "Show in chart"])
+            sourceY = 0
+            sourceX = 900 
+            for i in OutputDict["Convertor"]:
+                geometry = '{"_attributes":{"x":"' + str(sourceX) + '","y":"' + str(sourceY) + '","width":"60","height":"60","TRANSLATE_CONTROL_POINTS":"1","relative":"0","as":"geometry"},"mxPoint":{"_attributes":{"x":"0","y":"40","as":"offset"}}}'
+                style = 'shape=converter-shape;whiteSpace=wrap;html=1;strokeWidth=2;aspect=fixed;resizable=0;fontSize=16;fontColor=#000000;strokeColor=#000000;'
+                v = OutputDict["Convertor"][i]
+                csvWriter.writerow([v["ID"], i, geometry, style,  "interactive", "pull-all", "Black", 0])
+                sourceY += 200
+
+            # REGISTER
+            csvWriter.writerow([""])
+            csvWriter.writerow(["REGISTER"])
+            csvWriter.writerow(["ID", "Label", "Geometry", "Style", "Interactive", "Limits (minimum)", "Limits (maximum)", "Value (initial)",
+            "Value (step)", "Show in chart"])
+            sourceY = 0
+            sourceX = 1200
+            for i in OutputDict["Register"]:
+                geometry = '{"_attributes":{"x":"' + str(sourceX) + '","y":"' + str(sourceY) + '","width":"60","height":"60","TRANSLATE_CONTROL_POINTS":"1","relative":"0","as":"geometry"},"mxPoint":{"_attributes":{"x":"0","y":"40","as":"offset"}}}'
+                style = 'shape=register;whiteSpace=wrap;html=1;strokeWidth=2;aspect=fixed;resizable=0;fontSize=16;fontColor=#000000;strokeColor=#000000;'
+                v = OutputDict["Register"][i]
+                # currently not support label things for register
+                label = ""
+                interactive = 0
+                csvWriter.writerow([v["ID"], label, geometry, style, interactive, -9999, 9999, 0, 1, 0])
+                sourceY += 200
+
+            # RESOURCE CONNECTIONS
+            # ID	Label	Geometry	Style	Source	Target	Transfer	Color Coding	Color Coding (color)	Shuffle Source	Limits (minimum)	Limits (maximum)														
+            # for i in OutputDict["ResourceConnection"]:
+
+
+            # STATE CONNECTIONS
+
 
 
 for i in range(11):
