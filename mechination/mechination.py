@@ -34,8 +34,17 @@ class machinationGraph:
             "Register":  {"x": 900,  "y": 0, "deltaY": 200, "deltaX": 0, "OffsetX": 60, "OffsetY": 60},
             "Convertor": {"x": 1200, "y": 0, "deltaY": 200, "deltaX": 0, "OffsetX": 60, "OffsetY": 60},
         }
+        self.Attribute = {
+            "Convertor":
+            ["ID", "Label", "Geometry", "Style", "Activation", "Activation Mode",
+            "Resources (color)", "Show in chart"],
+            "ResourceConnection":
+            ["ID", "Label", "Geometry", "Style", "Source", "Target", "Transfer", "Color Coding",
+            "Color Coding (color)", "Shuffle Source", "Limits (minimum)", "Limits (maximum)"]
+        }
         self.CurrentID = 4
         self.AddSource("Common_Source")
+        self.AddPool("Nothing")
         
         # self.defaultSourceAttr = {"_attributes":{"x":"0","y":"0","width":"60","height":"60","TRANSLATE_CONTROL_POINTS":"1","relative":"0","as":"geometry"},"mxPoint":{"_attributes":{"x":"0","y":"40","as":"offset"}}}
         # self.defaultPoolAttr = {"_attributes":{"x":"0","y":"0","width":"60","height":"60","TRANSLATE_CONTROL_POINTS":"1","relative":"0","as":"geometry"},"mxPoint":{"_attributes":{"x":"0","y":"40","as":"offset"}}}
@@ -43,7 +52,12 @@ class machinationGraph:
         # self.defaultGateAttr = {"_attributes":{"x":"0","y":"0","width":"60","height":"60","TRANSLATE_CONTROL_POINTS":"1","relative":"0","as":"geometry"},"mxPoint":{"_attributes":{"x":"0","y":"40","as":"offset"}}}
         # self.defaultRegisterAttr = {"_attributes":{"x":"0","y":"0","width":"60","height":"60","TRANSLATE_CONTROL_POINTS":"1","relative":"0","as":"geometry"},"mxPoint":{"_attributes":{"x":"0","y":"48.5","as":"offset"}}}
         # self.defaultResourceConnectionAttr = {"_attributes":{"x":"0","y":"0","width":"60","height":"60","relative":"1","TRANSLATE_CONTROL_POINTS":"1","as":"geometry"},"mxPoint":[{"_attributes":{"x":"260","y":"220","as":"sourcePoint"}},{"_attributes":{"x":"345","y":"220","as":"targetPoint"}},{"_attributes":{"x":"-10","y":"10","as":"offset"}}]}
-        # self.defaultStateConnectionAttr = {"_attributes":{"x":"0","y":"0","width":"60","height":"60","relative":"1","TRANSLATE_CONTROL_POINTS":"1","as":"geometry"},"mxPoint":[{"_attributes":{"x":"220","y":"570","as":"sourcePoint"}},{"_attributes":{"x":"304.8528137423857","y":"510","as":"targetPoint"}},{"_attributes":{"x":"20","y":"10","as":"offset"}}]}
+        # self.defaultStaeConnectionAttr = {"_attributes":{"x":"0","y":"0","width":"60","height":"60","relative":"1","TRANSLATE_CONTROL_POINTS":"1","as":"geometry"},"mxPoint":[{"_attributes":{"x":"220","y":"570","as":"sourcePoint"}},{"_attributes":{"x":"304.8528137423857","y":"510","as":"targetPoint"}},{"_attributes":{"x":"20","y":"10","as":"offset"}}]}
+
+    def GetNode(self, i_name):
+        if i_name in self.Node:
+            return self.Node[i_name]
+        return {}
 
     def AddNode(self, i_name, i_type, i_option):
         if i_name not in self.Node:
@@ -84,36 +98,104 @@ class machinationGraph:
     def AddConvertorWithOption(self, i_name, i_option):
         self.AddNode(i_name, "Convertor", i_option)
 
-    def AddConversion(self, i_conversionName, i_in, i_out):
+    def AddCondition(self, conds, condName, target):
+        condID = 0
+        for condFrom in conds:
+            condID+=1
+            #print(condName, i_out[dstName]["Condition"][condName])
+            self.AddPool(condName)
+            self.StateConnect(condName + str(condID), condFrom, target, conds[condFrom])
+                    
+
+    def AddConversion(self, i_conversionName, option, i_in, i_out):
         currentGate = i_conversionName + "_Gate"
         currentConvertor = i_conversionName + "_Convertor"
         
         self.AddGate(currentGate)
-        self.AddConvertor(currentConvertor)
+        ConvertorOption = {}
+        resourceOption = {}
+        if "Setting" in option:
+            if "Convertor" in option["Setting"]:
+                for additionOption in self.Attribute["Convertor"]:
+                    if additionOption in option["Setting"]["Convertor"]:
+                        ConvertorOption[additionOption] = option["Setting"]["Convertor"][additionOption]
+            if "ResourceConnection" in option["Setting"]:
+                for additionOption in self.Attribute["ResourceConnection"]:
+                    if additionOption in option["Setting"]["ResourceConnection"]:
+                        resourceOption[additionOption] = option["Setting"]["ResourceConnection"][additionOption]
+
+        # print(ConvertorOption)
+        self.AddConvertorWithOption(currentConvertor, ConvertorOption)
+
+        if "Condition" in option:
+            self.AddCondition(option["Condition"], currentGate + "_Condition", currentConvertor)
+        
         outSum = 0
         if not i_out:
             return
         else:
             for dstName in i_out:
-                self.ResourceConnect(i_conversionName + "_" + dstName + "_Connection",  currentGate, dstName, i_out[dstName])
-                outSum += int(i_out[dstName])
+                self.AddPool(dstName)
+                if type(i_out[dstName]) is int:
+                    self.ResourceConnectWithOption(i_conversionName + "_" + dstName + "_Connection",  currentGate, dstName, i_out[dstName], resourceOption)
+                    outSum += int(i_out[dstName])
+                else:
+                    outSum += int(i_out[dstName]["value"])
+                    if "Condition" in i_out[dstName]:
+                        outGate = i_conversionName + "_" + dstName + "_Gate"
+                        self.AddGate(outGate)
+
+                        # only or condition support right now
+                        print(i_out)
+                        print(i_out[dstName]["Condition"])
+                        self.AddCondition(i_out[dstName]["Condition"], currentGate + "_" + dstName+"_Condition", dstName)
+
+                        #print("outGate", outGate, dstName)
+                        print(i_out[dstName]["value"])
+                        self.ResourceConnectWithOption(i_conversionName + "_" + dstName + "_Gate_Connection1", currentGate, outGate, i_out[dstName]["value"], resourceOption)
+                        self.ResourceConnectWithOption(i_conversionName + "_" + dstName + "_Gate_Connection2", outGate, "Nothing", "0", resourceOption)
+                        self.ResourceConnectWithOption(i_conversionName + "_" + dstName + "_Gate_Connection3", outGate, dstName, i_out[dstName]["value"], resourceOption)
+                    else:
+                        print(i_out[dstName]["value"])
+                        self.ResourceConnectWithOption(i_conversionName + "_" + dstName + "_Connection",  currentGate, dstName, int(i_out[dstName]["value"]), resourceOption)
+                    
 
         if not i_in:
-            self.ResourceConnect("CommonSource_" + i_conversionName +"_Connection", "Common_Source", currentConvertor, 1)
+            self.ResourceConnectWithOption("CommonSource_" + i_conversionName +"_Connection", "Common_Source", currentConvertor, 1, resourceOption)
         else:
             for srcName in i_in:
-                self.ResourceConnect(srcName + "_" + i_conversionName +"_Connection", srcName, currentConvertor, i_in[srcName])
+                self.AddPool(srcName)
+                if type(i_in[srcName]) is int:
+                    self.ResourceConnectWithOption(srcName + "_" + i_conversionName +"_Connection", srcName, currentConvertor, i_in[srcName], resourceOption)
+                elif type(i_in[srcName]) is dict:
+                    self.ResourceConnectWithOption(srcName + "_" + i_conversionName +"_Connection", srcName, currentConvertor, i_in[srcName]["value"], resourceOption)
+                
         
-        self.ResourceConnect(i_conversionName +"_Connection", currentConvertor, currentGate, outSum)
+        self.ResourceConnectWithOption(i_conversionName +"_Connection", currentConvertor, currentGate, outSum, resourceOption)
+
+    def HasNode(self, i_name):
+        
+        return i_name in self.Node
+
+    def ResourceConnectWithOption(self, i_name, i_from, i_to, i_num, i_option):
+        self.CurrentID += 1
+        if not self.HasNode(i_from):
+            print("ResourceConnect Failed: graph node doesn't have " + i_from + "!")
+        if not self.HasNode(i_to):
+            print("ResourceConnect Failed: graph node doesn't have " + i_to + "!")
+        self.Connection[i_name] = {"ID": self.CurrentID, "type" : "ResourceConnection", "Label":i_num, "Source":i_from, "Target":i_to}
+        self.Connection[i_name].update(i_option)
 
     def ResourceConnect(self, i_name, i_from, i_to, i_num):
-        self.CurrentID += 1
-        
-        self.Connection[i_name] = {"ID": self.CurrentID, "type" : "ResourceConnection", "Label":i_num, "Source":self.Node[i_from], "Target":self.Node[i_to]}
+        self.ResourceConnectWithOption(i_name, i_from, i_to, i_num, {})
 
     def StateConnect(self, i_name, i_from, i_to, i_label):
         self.CurrentID += 1
-        self.Connection[i_name] = {"ID": self.CurrentID, "type" : "StateConnection", "Label":i_label, "Source":self.Node[i_from], "Target":self.Node[i_to]}
+        if not self.HasNode(i_from):
+            print("StateConnect Failed: graph node doesn't have " + i_from + "!")
+        if not self.HasNode(i_to):
+            print("StateConnect Failed: graph node doesn't have " + i_to + "!")
+        self.Connection[i_name] = {"ID": self.CurrentID, "type" : "StateConnection", "Label":i_label, "Source":i_from, "Target":i_to}
 
     def OutputToCsv(self, i_filepath):
         OutputDict = {
@@ -125,14 +207,13 @@ class machinationGraph:
             "StateConnection":{},
             "ResourceConnection":{},
         }
-        OutputID = self.CurrentID
+        #OutputID = self.CurrentID
         for i in self.Node:
             OutputDict[self.Node[i]["type"]][i] = self.Node[i]
-        
         for i in self.Connection:
-            OutputID+=1
+            #OutputID+=1
             OutputDict[self.Connection[i]["type"]][i] = self.Connection[i]
-            OutputDict[self.Connection[i]["type"]][i].update({"ID": OutputID})
+            #OutputDict[self.Connection[i]["type"]][i].update({"ID": OutputID})
         with open(i_filepath, mode='wb') as outputFile:
             csvWriter = csv.writer(outputFile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
@@ -175,14 +256,15 @@ class machinationGraph:
             # CONVERTERS
             csvWriter.writerow([""])
             csvWriter.writerow(["CONVERTERS"])
-            csvWriter.writerow(["ID", "Label", "Geometry", "Style", "Activation", "Activation Mode",
-            "Resources (color)", "Show in chart"])
+            csvWriter.writerow(self.Attribute["Convertor"])
 
             for i in OutputDict["Convertor"]:
                 v = OutputDict["Convertor"][i]
                 geometry = '{"_attributes":{"x":"' + str(v["posX"]) + '","y":"' + str(v["posY"]) + '","width":"60","height":"60","TRANSLATE_CONTROL_POINTS":"1","relative":"0","as":"geometry"},"mxPoint":{"_attributes":{"x":"0","y":"40","as":"offset"}}}'
                 style = 'shape=converter-shape;whiteSpace=wrap;html=1;strokeWidth=2;aspect=fixed;resizable=0;fontSize=16;fontColor=#000000;strokeColor=#000000;'
-                csvWriter.writerow([v["ID"], i, geometry, style,  "interactive", "pull-all", "Black", 0])
+                activation = v["Activation"] if "Activation" in v else "interactive"
+                activationMode = v["Activation Mode"] if "Activation Mode" in v else "pull-all"
+                csvWriter.writerow([v["ID"], i, geometry, style, activation, activationMode, "Black", 0])
 
             # REGISTER
             csvWriter.writerow([""])
@@ -197,25 +279,33 @@ class machinationGraph:
                 # currently not support label things for register
                 label = ""
                 interactive = 0
-                csvWriter.writerow([v["ID"], label, geometry, style, interactive, -9999, 9999, 0, 1, 0])
+                value = v["Value (initial)"] if "value" in v else 0
+                csvWriter.writerow([v["ID"], label, geometry, style, interactive, -9999, 9999, 0, 1, value])
 
             # RESOURCE CONNECTIONS
             # ID	Label	Geometry	Style	Source	Target	Transfer	Color Coding	Color Coding (color)	Shuffle Source	Limits (minimum)	Limits (maximum)														
             # for i in OutputDict["ResourceConnection"]:
             csvWriter.writerow([""])
             csvWriter.writerow(["RESOURCE CONNECTIONS"])
-            csvWriter.writerow(["ID", "Label", "Geometry", "Style", "Source", "Target", "Transfer", "Color Coding",
-            "Color Coding (color)", "Shuffle Source", "Limits (minimum)", "Limits (maximum)"])
+            csvWriter.writerow(self.Attribute["ResourceConnection"])
+
             for i in OutputDict["ResourceConnection"]:
                 v = OutputDict["ResourceConnection"][i]
+                source = self.GetNode(v["Source"])
+                target = self.GetNode(v["Target"])
+                print("==============")
+                print(v["Source"])
+                print(v["Target"])
+                print(source)
+                print(target)
                 geometry = '{"_attributes":{"x":"0","y":"0","width":"60","height":"60","relative":"1","TRANSLATE_CONTROL_POINTS":"1","as":"geometry"},"mxPoint":' + \
                     '[{"_attributes":{"x":"' + \
-                    str(v["Source"]["posX"] + self.Layerout[v["Source"]["type"]]["OffsetX"]) + '","y":"' + \
-                    str(v["Source"]["posY"] + self.Layerout[v["Source"]["type"]]["OffsetY"]) + \
+                    str(source["posX"] + self.Layerout[source["type"]]["OffsetX"]) + '","y":"' + \
+                    str(source["posY"] + self.Layerout[source["type"]]["OffsetY"]) + \
                     '","as":"sourcePoint"}},' + \
                     '{"_attributes":{"x":"' + \
-                    str(v["Target"]["posX"] + self.Layerout[v["Target"]["type"]]["OffsetX"]) + '","y":"' + \
-                    str(v["Target"]["posY"] + self.Layerout[v["Target"]["type"]]["OffsetY"]) + \
+                    str(target["posX"] + self.Layerout[target["type"]]["OffsetX"]) + '","y":"' + \
+                    str(target["posY"] + self.Layerout[target["type"]]["OffsetY"]) + \
                     '","as":"targetPoint"}},' + \
                     '{"_attributes":{"x":"-10","y":"10","as":"offset"}}]}'
                 style = 'shape=resource-connection;endArrow=classic;html=1;strokeWidth=2;fontSize=16;fontColor=#000000;strokeColor=#000000;entryX=0;entryY=0.5;entryPerimeter=0;exitX=0.75;exitY=0.5;exitPerimeter=0;'
@@ -223,10 +313,11 @@ class machinationGraph:
                 
                 Label = v["Label"]
                 ID = v["ID"]
-                Source = v["Source"]["ID"]
-                Target = v["Target"]["ID"]
+                SourceID = source["ID"]
+                TargetID = target["ID"]
+                Transfer = v["Transfer"] if "Transfer" in v else "interval-based"
                 # 4	2	{"_attributes":{"x":"0","y":"0","width":"60","height":"60","relative":"1","TRANSLATE_CONTROL_POINTS":"1","as":"geometry"},"mxPoint":[{"_attributes":{"x":"260","y":"220","as":"sourcePoint"}},{"_attributes":{"x":"345","y":"220","as":"targetPoint"}},{"_attributes":{"x":"-10","y":"10","as":"offset"}}]}	shape=resource-connection;endArrow=classic;html=1;strokeWidth=2;fontSize=16;fontColor=#000000;strokeColor=#000000;exitX=0.75;exitY=0.5;exitPerimeter=0;entryX=0.25;entryY=0.75;entryPerimeter=0;	8	5	interval-based	0	Black	0	-9999	9999														
-                csvWriter.writerow([ID, Label, geometry, style, Source, Target, "interval-based", 0, "Black", 0, -9999, 9999])
+                csvWriter.writerow([ID, Label, geometry, style, SourceID, TargetID, Transfer, 0, "Black", 0, -9999, 9999])
 
             # STATE CONNECTIONS
             # ID	Label	Geometry	Style	Source	Target	Color Coding	Color Coding (color)																		
@@ -235,25 +326,27 @@ class machinationGraph:
             csvWriter.writerow(["ID", "Label", "Geometry", "Style", "Source", "Target", "Color Coding",
             "Color Coding (color)"])
             for i in OutputDict["StateConnection"]:
-                v = OutputDict["ResourceConnection"][i]
+                v = OutputDict["StateConnection"][i]
+                source = self.GetNode(v["Source"])
+                target = self.GetNode(v["Target"])
                 geometry = '{"_attributes":{"x":"0","y":"0","width":"60","height":"60","relative":"1","TRANSLATE_CONTROL_POINTS":"1","as":"geometry"},"mxPoint":' + \
                     '[{"_attributes":{"x":"' + \
-                    str(v["Source"]["posX"] + self.Layerout[v["Source"]["type"]]["OffsetX"]) + '","y":"' + \
-                    str(v["Source"]["posY"] + self.Layerout[v["Source"]["type"]]["OffsetY"]) + \
+                    str(source["posX"] + self.Layerout[source["type"]]["OffsetX"]) + '","y":"' + \
+                    str(source["posY"] + self.Layerout[source["type"]]["OffsetY"]) + \
                     '","as":"sourcePoint"}},' + \
                     '{"_attributes":{"x":"' + \
-                    str(v["Target"]["posX"] + self.Layerout[v["Target"]["type"]]["OffsetX"]) + '","y":"' + \
-                    str(v["Target"]["posY"] + self.Layerout[v["Target"]["type"]]["OffsetY"]) + \
+                    str(target["posX"] + self.Layerout[target["type"]]["OffsetX"]) + '","y":"' + \
+                    str(target["posY"] + self.Layerout[target["type"]]["OffsetY"]) + \
                     '","as":"targetPoint"}},' + \
                     '{"_attributes":{"x":"-10","y":"10","as":"offset"}}]}'
                 # style = 'shape=resource-connection;endArrow=classic;html=1;strokeWidth=2;fontSize=16;fontColor=#000000;strokeColor=#000000;exitX=0.75;exitY=0.5;exitPerimeter=0;entryX=0.25;entryY=0.75;entryPerimeter=0;'
-                style = 'shape=resource-connection;endArrow=classic;html=1;strokeWidth=2;fontSize=16;fontColor=#000000;strokeColor=#000000;entryX=0;entryY=0.5;entryPerimeter=0;exitX=0.75;exitY=0.5;exitPerimeter=0;'
+                style = 'shape=state-connection;endArrow=classic;dashed=1;dashPattern=4 3;html=1;strokeWidth=2;fontSize=16;fontColor=#000000;strokeColor=#000000;'
                 Label = v["Label"]
                 ID = v["ID"]
-                Source = v["Source"]["ID"]
-                Target = v["Target"]["ID"]
+                SourceID = source["ID"]
+                TargetID = target["ID"]
                 # 4	2	{"_attributes":{"x":"0","y":"0","width":"60","height":"60","relative":"1","TRANSLATE_CONTROL_POINTS":"1","as":"geometry"},"mxPoint":[{"_attributes":{"x":"260","y":"220","as":"sourcePoint"}},{"_attributes":{"x":"345","y":"220","as":"targetPoint"}},{"_attributes":{"x":"-10","y":"10","as":"offset"}}]}	shape=resource-connection;endArrow=classic;html=1;strokeWidth=2;fontSize=16;fontColor=#000000;strokeColor=#000000;exitX=0.75;exitY=0.5;exitPerimeter=0;entryX=0.25;entryY=0.75;entryPerimeter=0;	8	5	interval-based	0	Black	0	-9999	9999														
-                csvWriter.writerow([ID, Label, geometry, style, Source, Target, 0, "Black"])
+                csvWriter.writerow([ID, Label, geometry, style, SourceID, TargetID, 0, "Black"])
 
 
 
@@ -275,6 +368,33 @@ class gameobject:
 gameobjects = {
     "Common" : gameobject("Common")}
 playerList = ["Player1", "Player2"]
+OperationList = ["TwoResourceSelectionOp",
+                "OneClayOp",
+                "OneReedOp",
+                "OneWoodOp",
+                "ThreeWoodOp",
+                "PlowFieldOp",
+                "BuyPatureOp",
+                "SowOp",
+                "OneGrainOp",
+                "OneSheepOp",
+                "OneFoodOp",
+                "FirstHandOp",
+                "Round1Op",
+                "Round2Op",
+                "Round3Op",
+                "Round4Op",
+                "Round5Op",
+                "Round6Op",
+                "Round7Op",
+                "Round8Op",
+                "Round9Op",
+                "Round10Op",
+                "Round11Op",
+                "Round12Op",
+                "Round13Op",
+                "Round14Op"]
+
 ListIdentifier = "List"
 for playerName in playerList:
     gameobjects[playerName] = gameobject(playerName)
@@ -282,6 +402,7 @@ for playerName in playerList:
 initialResource = {
     "Common":{
         #Operations
+        "Round": 0,
         "TwoResourceSelectionOp_Free":1,
         "OneClayOp_Free":1,
         "OneReedOp_Free":1,
@@ -292,8 +413,8 @@ initialResource = {
         "SowOp_Free":1,
         "OneGrainOp_Free":1,
         "OneSheepOp_Free":1,
-        "OneFoodOp_Free": 1,
-        "FirstHandOp_Free": 1,
+        "OneFoodOp_Free":1,
+        "FirstHandOp_Free":1,
         "Round1Op_Free":1,
         "Round2Op_Free":1,
         "Round3Op_Free":1,
@@ -308,6 +429,33 @@ initialResource = {
         "Round12Op_Free":1,
         "Round13Op_Free":1,
         "Round14Op_Free":1,
+        "TwoResourceSelectionOp_Used":0,
+        "OneClayOp_Used":0,
+        "OneReedOp_Used":0,
+        "OneWoodOp_Used":0,
+        "ThreeWoodOp_Used":0,
+        "PlowFieldOp_Used":0,
+        "BuyPatureOp_Used":0,
+        "SowOp_Used":0,
+        "OneGrainOp_Used":0,
+        "OneSheepOp_Used":0,
+        "OneFoodOp_Used":0,
+        "FirstHandOp_Used":0,
+        "Round1Op_Used":0,
+        "Round2Op_Used":0,
+        "Round3Op_Used":0,
+        "Round4Op_Used":0,
+        "Round5Op_Used":0,
+        "Round6Op_Used":0,
+        "Round7Op_Used":0,
+        "Round8Op_Used":0,
+        "Round9Op_Used":0,
+        "Round10Op_Used":0,
+        "Round11Op_Used":0,
+        "Round12Op_Used":0,
+        "Round13Op_Used":0,
+        "Round14Op_Used":0,
+        "RoundFinish_Op": 0,
     },
     "Player":{
        ListIdentifier: playerList,
@@ -323,12 +471,15 @@ builders = {
             "Common":{
                 "RoundFinish_Resource": 1,
                 "RoundFinish_Op": 1,
+                "Round": 1,
             }
         }
     },
     "RoundFinish_Resource":
     {
-        "Activation":"automatic",
+        "Setting":
+        {"Convertor":{"Activation":"automatic"}},
+        
         "in" : {
             "Common":{
                 "RoundFinish_Resource":1,
@@ -349,20 +500,7 @@ builders = {
             },
         },
     },
-    "RoundFinish_Op":
-    {
-        "Activation":"automatic",
-        "in" : {
-            "Common":{
-                "RoundFinish_Op": 1,
-            }
-        },
-        "out": {
-            "Common":{
-                "RoundFinish_Op_Used": 1,
-            }
-        }
-    },
+    
     # "OneClayOp":
     # {
     #     "in":{
@@ -385,40 +523,33 @@ builders = {
     # }
     "CommonRoundOperation":
     {
-        "type": "per",
-        "Prefix": [
-            "TwoResourceSelectionOp",
-            "OneClayOp",
-            "OneReedOp",
-            "OneWoodOp",
-            "ThreeWoodOp",
-            "PlowFieldOp",
-            "BuyPatureOp",
-            "SowOp",
-            "OneGrainOp",
-            "OneSheepOp",
-            "OneFoodOp",
-            "FirstHandOp",
-            "Round1Op",
-            "Round2Op",
-            "Round3Op",
-            "Round4Op",
-            "Round5Op",
-            "Round6Op",
-            "Round7Op",
-            "Round8Op",
-            "Round9Op",
-            "Round10Op",
-            "Round11Op",
-            "Round12Op",
-            "Round13Op",
-            "Round14Op",
-        ],
-        "UnitOp":
+        ListIdentifier: OperationList,
+        "Setting":
         {
-            "Condition": {'RoundFinish_Op': ">0"},
-            "in":{ "Common" : {"_Used": 1}},
-            "out": {"Common": {"_Free":1}},
+            "Convertor":{"Activation":"automatic"},
+            "ResourceConnection":{"Transfer": "instantaneous"},
+        },
+   
+        "Condition": {'Common_RoundFinish_Op': ">0"},
+        #"Condition": {'RoundFinish_Op': ">0"},
+        "in":{ "Common" : {
+            "Free": {ListIdentifier: True, "value": 1}, 
+        }},
+        "out": {"Common": {"Used": {ListIdentifier: True, "value": 1}}},
+        
+    },
+    "RoundFinish_Op":
+    {
+        "Activation":"automatic",
+        "in" : {
+            "Common":{
+                "RoundFinish_Op": 1,
+            }
+        },
+        "out": {
+            "Common":{
+                "RoundFinish_Op_Used": 1,
+            },
         }
     },
 }
@@ -439,30 +570,61 @@ for ResourceKey in initialResource:
     else:
         for i in element:
             graph.AddPoolWithOption(ResourceKey + "_" + i, {"Resources": element[i]})
+            # print(ResourceKey + "_" + i)
 
-# print(graph)  
-# for aBuilder in builders:
-#     srcList = {}
-#     dstList = {}
-#     if "Common" in builders[aBuilder]["in"]:
-#         for i in builders[aBuilder]["in"]["Common"]:
-#             srcList["Common_" + i] = builders[aBuilder]["in"]["Common"][i]
-#     if "Common" in builders[aBuilder]["out"]:
-#         for i in builders[aBuilder]["out"]["Common"]:
-#             dstList["Common_" + i] = builders[aBuilder]["out"]["Common"][i]
-#     if "Player" in builders[aBuilder]["in"] or "Player" in builders[aBuilder]["out"]:
-#         for playerName in playerList:
-#             specialSrcList = srcList
-#             specialDstList = dstList
-#             if "Player" in builders[aBuilder]["in"]:
-#                 for i in builders[aBuilder]["in"]["Player"]:
-#                     specialSrcList[playerName + "_" + i] = builders[aBuilder]["in"]["Player"][i]
-#             if "Player" in builders[aBuilder]["out"]:
-#                 for i in builders[aBuilder]["out"]["Player"]:
-#                     specialDstList[playerName + "_" + i] = builders[aBuilder]["out"]["Player"][i]
-#             graph.AddConversion(playerName + "_" + aBuilder, specialSrcList, specialDstList)
-#     else:
-#         graph.AddConversion(aBuilder, srcList, dstList)
+for builderKey in builders:
+    element = builders[builderKey]
+    if ListIdentifier in element:
+        # print(element)
+        for unit in element[ListIdentifier]:
+            srcList = {}
+            dstList = {}
+            for i in element["in"]:
+                for k in element["in"][i]:
+                    Prefix = i + "_" if i != "" else ""
+                    if type(element["in"][i][k]) is dict and ListIdentifier in element["in"][i][k]:
+                        srcList[Prefix + unit + "_" + k] = element["in"][i][k]
+                    else:
+                        srcList[Prefix + k] = element["in"][i][k]
+            for i in element["out"]:
+                for k in element["out"][i]:
+                    Prefix = i + "_" if i != "" else ""
+                    if type(element["out"][i][k]) is dict and ListIdentifier in element["out"][i][k]:
+                        dstList[Prefix + unit + "_" + k] = element["out"][i][k]
+                    else:
+                        dstList[Prefix + k] = element["out"][i][k]
+            graph.AddConversion(unit + "_" + builderKey, element, srcList, dstList)
+    else:
+        srcList = {}
+        dstList = {}
+        for i in element["in"]:
+            Prefix = i + "_" if i != "" else ""
+            for k in element["in"][i]:
+                srcList[Prefix + k] = element["in"][i][k]
+        for i in element["out"]:
+            Prefix = i + "_" if i != "" else ""
+            for k in element["out"][i]:
+                dstList[Prefix + k] = element["out"][i][k]
+        graph.AddConversion(builderKey, element, srcList, dstList)
+    # if "Common" in builders[aBuilder]["in"]:
+    #     for i in builders[aBuilder]["in"]["Common"]:
+    #         srcList["Common_" + i] = builders[aBuilder]["in"]["Common"][i]
+    # if "Common" in builders[aBuilder]["out"]:
+    #     for i in builders[aBuilder]["out"]["Common"]:
+    #         dstList["Common_" + i] = builders[aBuilder]["out"]["Common"][i]
+    # if "Player" in builders[aBuilder]["in"] or "Player" in builders[aBuilder]["out"]:
+    #     for playerName in playerList:
+    #         specialSrcList = srcList
+    #         specialDstList = dstList
+    #         if "Player" in builders[aBuilder]["in"]:
+    #             for i in builders[aBuilder]["in"]["Player"]:
+    #                 specialSrcList[playerName + "_" + i] = builders[aBuilder]["in"]["Player"][i]
+    #         if "Player" in builders[aBuilder]["out"]:
+    #             for i in builders[aBuilder]["out"]["Player"]:
+    #                 specialDstList[playerName + "_" + i] = builders[aBuilder]["out"]["Player"][i]
+    #         graph.AddConversion(playerName + "_" + aBuilder, specialSrcList, specialDstList)
+    # else:
+    #     graph.AddConversion(aBuilder, srcList, dstList)
 
 graph.OutputToCsv("a.csv")
     
