@@ -220,7 +220,7 @@ class machinationGraph:
         #     #OutputID+=1
         #     OutputDict[self.Connection[i]["type"]][i] = self.Connection[i]
         #     #OutputDict[self.Connection[i]["type"]][i].update({"ID": OutputID})
-        with open(i_filepath, mode='wb') as outputFile:
+        with open(i_filepath, mode='w', newline="") as outputFile:
             csvWriter = csv.writer(outputFile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
             csvWriter.writerow(["SOURCES"])
@@ -564,24 +564,22 @@ builders = {
             },
         }
     },
-    "PlayerOneClayOp":
-    {
+}
+def AddResourceConvertor(builders, convertorName, resourceOpName, resourceName, playerResourceName):
+    builders[convertorName + "Step1"] = {
         "Setting":
         {
             "ResourceConnection":{"Transfer": "instantaneous"},
         },
         ListIdentifier: playerList,
         "in":{
-            "Common": {
-                "OneClayOp_Free": 1,
+            "": {
+                resourceOpName + "_Free": 1,
             },
-            
         },
         "out":{
-            "Common": {
-                "OneClayOp_Used": 1,
-            },
             "": { 
+                resourceOpName + "_Used": 1,
                 "Clay": {
                     ListIdentifier: True,
                     "Addition": {"Common_OneClay": "+1"},
@@ -589,17 +587,16 @@ builders = {
                 },
             }
         },
-    },
-    "CommonOneClayClean":
-    {
+    }
+    builders[convertorName + "Step2"] = {
         "Setting":
         {
             "Convertor":{"Activation":"automatic"},
         },
-        "Condition": { "Common_OneClayOp_Used":">0"},
+        "Condition": { resourceOpName + "_Used" :">0"},
         "in":{
-            "Common": {
-                "OneClay":"all",
+            "": {
+                resourceName:"all",
             },
         },
         "out":{
@@ -608,8 +605,17 @@ builders = {
             }
         }
     }
-}
+    return builders
 
+builders = AddResourceConvertor(builders, "PlayerOneClayOp", "Common_OneClayOp", "Common_OneClay", "Clay")
+builders = AddResourceConvertor(builders, "PlayerOneWoodOp", "Common_OneWoodOp", "Common_OneWood", "Wood")
+builders = AddResourceConvertor(builders, "PlayerOneReedOp", "Common_OneReedOp", "Common_OneReed", "Reed")
+builders = AddResourceConvertor(builders, "PlayerOneGrainOp", "Common_OneGrainOp", "Common_OneGrain", "Grain")
+builders = AddResourceConvertor(builders, "PlayerOneFoodOp", "Common_OneFoodOp", "Common_OneFood", "Food")
+builders = AddResourceConvertor(builders, "PlayerOneFirstHandFoodOp", "Common_FirstHandOp", "Common_OneFirstHandFood", "Food")
+builders = AddResourceConvertor(builders, "PlayerOneBoarOp", "Common_OneBoarOp", "Common_OneBoar", "Boar")
+builders = AddResourceConvertor(builders, "PlayerOneCastleOp", "Common_OneCastleOp", "Common_OneCastle", "Castle")
+builders = AddResourceConvertor(builders, "PlayerThreeWoodOp", "Common_ThreeWoodOp", "Common_ThreeWood", "Wood")
 
 graph = machinationGraph()
 # for obj in gameobjects:
