@@ -26,7 +26,6 @@ class machinationGraph:
         # self.StateConnections = {}
 
         self.Node = {}
-        self.Connection = {}
         self.Layerout = {
             "Source":    {"x": 0,    "y": 0, "deltaY": 200, "deltaX": 0, "OffsetX": 50, "OffsetY": 20},
             "Pool":      {"x": 300,  "y": 0, "deltaY": 200, "deltaX": 0, "OffsetX": 60, "OffsetY": 60},
@@ -146,32 +145,39 @@ class machinationGraph:
                         self.AddGate(outGate)
 
                         # only or condition support right now
-                        print(i_out)
-                        print(i_out[dstName]["Condition"])
+                        # print(i_out)
+                        # print(i_out[dstName]["Condition"])
                         self.AddCondition(i_out[dstName]["Condition"], currentGate + "_" + dstName+"_Condition", dstName)
 
                         #print("outGate", outGate, dstName)
-                        print(i_out[dstName]["value"])
+                        # print(i_out[dstName]["value"])
                         self.ResourceConnectWithOption(i_conversionName + "_" + dstName + "_Gate_Connection1", currentGate, outGate, i_out[dstName]["value"], resourceOption)
                         self.ResourceConnectWithOption(i_conversionName + "_" + dstName + "_Gate_Connection2", outGate, "Nothing", "0", resourceOption)
                         self.ResourceConnectWithOption(i_conversionName + "_" + dstName + "_Gate_Connection3", outGate, dstName, i_out[dstName]["value"], resourceOption)
                     else:
-                        print(i_out[dstName]["value"])
+                        # print(i_out[dstName]["value"])
                         self.ResourceConnectWithOption(i_conversionName + "_" + dstName + "_Connection",  currentGate, dstName, int(i_out[dstName]["value"]), resourceOption)
-                    
 
         if not i_in:
             self.ResourceConnectWithOption("CommonSource_" + i_conversionName +"_Connection", "Common_Source", currentConvertor, 1, resourceOption)
         else:
             for srcName in i_in:
                 self.AddPool(srcName)
-                if type(i_in[srcName]) is int:
-                    self.ResourceConnectWithOption(srcName + "_" + i_conversionName +"_Connection", srcName, currentConvertor, i_in[srcName], resourceOption)
-                elif type(i_in[srcName]) is dict:
+                if type(i_in[srcName]) is dict:
                     self.ResourceConnectWithOption(srcName + "_" + i_conversionName +"_Connection", srcName, currentConvertor, i_in[srcName]["value"], resourceOption)
-                
+                else:
+                    self.ResourceConnectWithOption(srcName + "_" + i_conversionName +"_Connection", srcName, currentConvertor, i_in[srcName], resourceOption)
+        self.ResourceConnectWithOption(i_conversionName +"_Connection", currentConvertor, currentGate, outSum, resourceOption)                    
+        for dstName in i_out:        
+            if type(i_out[dstName]) is dict and "Addition" in i_out[dstName]:
+                additionID = 0
+                for additionKey in i_out[dstName]["Addition"]:
+                    additionID+=1
+                    self.StateConnect(i_conversionName + "_" + dstName + "_Addition" + str(additionID), additionKey, i_conversionName + "_" + dstName + "_Connection", i_out[dstName]["Addition"][additionKey])         
+                    additionID+=1
+                    self.StateConnect(i_conversionName + "_" + dstName + "_Addition" + str(additionID), additionKey, i_conversionName +"_Connection", i_out[dstName]["Addition"][additionKey])         
         
-        self.ResourceConnectWithOption(i_conversionName +"_Connection", currentConvertor, currentGate, outSum, resourceOption)
+        
 
     def HasNode(self, i_name):
         
@@ -183,8 +189,8 @@ class machinationGraph:
             print("ResourceConnect Failed: graph node doesn't have " + i_from + "!")
         if not self.HasNode(i_to):
             print("ResourceConnect Failed: graph node doesn't have " + i_to + "!")
-        self.Connection[i_name] = {"ID": self.CurrentID, "type" : "ResourceConnection", "Label":i_num, "Source":i_from, "Target":i_to}
-        self.Connection[i_name].update(i_option)
+        self.Node[i_name] = {"ID": self.CurrentID, "type" : "ResourceConnection", "Label":i_num, "Source":i_from, "Target":i_to}
+        self.Node[i_name].update(i_option)
 
     def ResourceConnect(self, i_name, i_from, i_to, i_num):
         self.ResourceConnectWithOption(i_name, i_from, i_to, i_num, {})
@@ -195,7 +201,7 @@ class machinationGraph:
             print("StateConnect Failed: graph node doesn't have " + i_from + "!")
         if not self.HasNode(i_to):
             print("StateConnect Failed: graph node doesn't have " + i_to + "!")
-        self.Connection[i_name] = {"ID": self.CurrentID, "type" : "StateConnection", "Label":i_label, "Source":i_from, "Target":i_to}
+        self.Node[i_name] = {"ID": self.CurrentID, "type" : "StateConnection", "Label":i_label, "Source":i_from, "Target":i_to}
 
     def OutputToCsv(self, i_filepath):
         OutputDict = {
@@ -210,10 +216,10 @@ class machinationGraph:
         #OutputID = self.CurrentID
         for i in self.Node:
             OutputDict[self.Node[i]["type"]][i] = self.Node[i]
-        for i in self.Connection:
-            #OutputID+=1
-            OutputDict[self.Connection[i]["type"]][i] = self.Connection[i]
-            #OutputDict[self.Connection[i]["type"]][i].update({"ID": OutputID})
+        # for i in self.Connection:
+        #     #OutputID+=1
+        #     OutputDict[self.Connection[i]["type"]][i] = self.Connection[i]
+        #     #OutputDict[self.Connection[i]["type"]][i].update({"ID": OutputID})
         with open(i_filepath, mode='wb') as outputFile:
             csvWriter = csv.writer(outputFile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
@@ -293,11 +299,7 @@ class machinationGraph:
                 v = OutputDict["ResourceConnection"][i]
                 source = self.GetNode(v["Source"])
                 target = self.GetNode(v["Target"])
-                print("==============")
-                print(v["Source"])
-                print(v["Target"])
-                print(source)
-                print(target)
+
                 geometry = '{"_attributes":{"x":"0","y":"0","width":"60","height":"60","relative":"1","TRANSLATE_CONTROL_POINTS":"1","as":"geometry"},"mxPoint":' + \
                     '[{"_attributes":{"x":"' + \
                     str(source["posX"] + self.Layerout[source["type"]]["OffsetX"]) + '","y":"' + \
@@ -316,6 +318,8 @@ class machinationGraph:
                 SourceID = source["ID"]
                 TargetID = target["ID"]
                 Transfer = v["Transfer"] if "Transfer" in v else "interval-based"
+                self.Node[i]["posX"] = (source["posX"] + self.Layerout[source["type"]]["OffsetX"] + target["posX"] + self.Layerout[target["type"]]["OffsetX"]) / 2.0
+                self.Node[i]["posY"] = (source["posY"] + self.Layerout[source["type"]]["OffsetY"] + target["posY"] + self.Layerout[target["type"]]["OffsetY"]) / 2.0
                 # 4	2	{"_attributes":{"x":"0","y":"0","width":"60","height":"60","relative":"1","TRANSLATE_CONTROL_POINTS":"1","as":"geometry"},"mxPoint":[{"_attributes":{"x":"260","y":"220","as":"sourcePoint"}},{"_attributes":{"x":"345","y":"220","as":"targetPoint"}},{"_attributes":{"x":"-10","y":"10","as":"offset"}}]}	shape=resource-connection;endArrow=classic;html=1;strokeWidth=2;fontSize=16;fontColor=#000000;strokeColor=#000000;exitX=0.75;exitY=0.5;exitPerimeter=0;entryX=0.25;entryY=0.75;entryPerimeter=0;	8	5	interval-based	0	Black	0	-9999	9999														
                 csvWriter.writerow([ID, Label, geometry, style, SourceID, TargetID, Transfer, 0, "Black", 0, -9999, 9999])
 
@@ -329,14 +333,19 @@ class machinationGraph:
                 v = OutputDict["StateConnection"][i]
                 source = self.GetNode(v["Source"])
                 target = self.GetNode(v["Target"])
+                print("==============")
+                print(v["Source"])
+                print(v["Target"])
+                print(source)
+                print(target)
                 geometry = '{"_attributes":{"x":"0","y":"0","width":"60","height":"60","relative":"1","TRANSLATE_CONTROL_POINTS":"1","as":"geometry"},"mxPoint":' + \
                     '[{"_attributes":{"x":"' + \
-                    str(source["posX"] + self.Layerout[source["type"]]["OffsetX"]) + '","y":"' + \
-                    str(source["posY"] + self.Layerout[source["type"]]["OffsetY"]) + \
+                    str(source["posX"] ) + '","y":"' + \
+                    str(source["posY"] ) + \
                     '","as":"sourcePoint"}},' + \
                     '{"_attributes":{"x":"' + \
-                    str(target["posX"] + self.Layerout[target["type"]]["OffsetX"]) + '","y":"' + \
-                    str(target["posY"] + self.Layerout[target["type"]]["OffsetY"]) + \
+                    str(target["posX"] ) + '","y":"' + \
+                    str(target["posY"]) + \
                     '","as":"targetPoint"}},' + \
                     '{"_attributes":{"x":"-10","y":"10","as":"offset"}}]}'
                 # style = 'shape=resource-connection;endArrow=classic;html=1;strokeWidth=2;fontSize=16;fontColor=#000000;strokeColor=#000000;exitX=0.75;exitY=0.5;exitPerimeter=0;entryX=0.25;entryY=0.75;entryPerimeter=0;'
@@ -533,14 +542,17 @@ builders = {
         "Condition": {'Common_RoundFinish_Op': ">0"},
         #"Condition": {'RoundFinish_Op': ">0"},
         "in":{ "Common" : {
-            "Free": {ListIdentifier: True, "value": 1}, 
+            "Used": {ListIdentifier: True, "value": 1}, 
         }},
-        "out": {"Common": {"Used": {ListIdentifier: True, "value": 1}}},
+        "out": {"Common": {"Free": {ListIdentifier: True, "value": 1}}},
         
     },
     "RoundFinish_Op":
     {
-        "Activation":"automatic",
+        "Setting":
+        {
+            "Convertor":{"Activation":"automatic"},
+        },
         "in" : {
             "Common":{
                 "RoundFinish_Op": 1,
@@ -552,6 +564,50 @@ builders = {
             },
         }
     },
+    "PlayerOneClayOp":
+    {
+        "Setting":
+        {
+            "ResourceConnection":{"Transfer": "instantaneous"},
+        },
+        ListIdentifier: playerList,
+        "in":{
+            "Common": {
+                "OneClayOp_Free": 1,
+            },
+            
+        },
+        "out":{
+            "Common": {
+                "OneClayOp_Used": 1,
+            },
+            "": { 
+                "Clay": {
+                    ListIdentifier: True,
+                    "Addition": {"Common_OneClay": "+1"},
+                    "value": 0,
+                },
+            }
+        },
+    },
+    "CommonOneClayClean":
+    {
+        "Setting":
+        {
+            "Convertor":{"Activation":"automatic"},
+        },
+        "Condition": { "Common_OneClayOp_Used":">0"},
+        "in":{
+            "Common": {
+                "OneClay":"all",
+            },
+        },
+        "out":{
+            "": {
+                "Nothing": 0,
+            }
+        }
+    }
 }
 
 
